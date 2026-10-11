@@ -344,6 +344,18 @@ public:
 
     virtual void paint(renderer::Renderer* painter, FrameTime time, PaintMode mode, model::Modifier* modifier = nullptr) const;
 
+    /**
+     * \brief Applies this node as an effect on the layer its parent is painting
+     *
+     * Called on each child after the parent has painted its children.
+     * Nodes that are not effects do nothing.
+     */
+    virtual void paint_effect(renderer::Renderer* painter, FrameTime time) const
+    {
+        Q_UNUSED(painter);
+        Q_UNUSED(time);
+    }
+
     QIcon instance_icon() const override;
 
 Q_SIGNALS:

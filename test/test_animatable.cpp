@@ -9,6 +9,7 @@
 #include <QMetaProperty>
 
 #include "glaxnimate/model/animation/animatable.hpp"
+#include "glaxnimate/model/animation/join_animatables.hpp"
 #include "glaxnimate/model/object.hpp"
 #include "glaxnimate/model/document.hpp"
 #include "glaxnimate/command/animation_commands.hpp"
@@ -87,6 +88,24 @@ class TestAnimatable: public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+
+    void test_join_ignores_static_easing()
+    {
+        Document doc("");
+        MetaTestSubject ts(&doc);
+        KeyframeTransition ease({0.42, 0}, {0.58, 1});
+        ts.anim_point.set_keyframe(0, QPointF(0, 0))->set_transition(ease);
+        ts.anim_point.set_keyframe(30, QPointF(10, 0));
+        // A single keyframe holds a constant value and has no easing of its own
+        ts.anim_float.set_keyframe(0, 5);
+
+        JoinAnimatables join({&ts.anim_point, &ts.anim_float, &ts.anim_int});
+        QCOMPARE(join.keyframes().size(), 2u);
+        auto transition = join.keyframes()[0].transition();
+        QCOMPARE(transition.hold(), false);
+        QCOMPARE(transition.before(), ease.before());
+        QCOMPARE(transition.after(), ease.after());
+    }
 
     void test_animation_container()
     {

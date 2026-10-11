@@ -10,6 +10,7 @@ set(SOURCES
     webexport_module.cpp
     interactive_svg_format.cpp
     css_svg_format.cpp
+    mobile_formats.cpp
 )
 
 add_library(GlaxnimateWebExport OBJECT ${SOURCES})

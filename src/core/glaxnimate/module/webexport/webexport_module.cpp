@@ -8,6 +8,7 @@
 
 #include "css_svg_format.hpp"
 #include "interactive_svg_format.hpp"
+#include "mobile_formats.hpp"
 
 std::vector<glaxnimate::module::ExternalComponent> glaxnimate::webexport::Module::components() const
 {
@@ -18,6 +19,8 @@ void glaxnimate::webexport::Module::initialize()
 {
     register_io_classes<
         InteractiveSvgFormat,
-        CssSvgFormat
+        CssSvgFormat,
+        ReactNativeFormat,
+        FlutterFormat
     >();
 }

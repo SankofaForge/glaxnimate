@@ -55,6 +55,11 @@ if ( GLAXNIMATE_WEBEXPORT_ENABLED )
         TEST_NAME test_interactive_svg
         LINK_LIBRARIES ${TESTS_LINK_LIBS}
     )
+    ecm_add_test(
+        test_css_svg.cpp
+        TEST_NAME test_css_svg
+        LINK_LIBRARIES ${TESTS_LINK_LIBS}
+    )
 endif()
 
 if ( NOT ANDROID )

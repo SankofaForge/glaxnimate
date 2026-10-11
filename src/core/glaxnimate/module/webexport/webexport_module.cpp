@@ -6,6 +6,7 @@
 
 #include "webexport_module.hpp"
 
+#include "css_svg_format.hpp"
 #include "interactive_svg_format.hpp"
 
 std::vector<glaxnimate::module::ExternalComponent> glaxnimate::webexport::Module::components() const
@@ -16,6 +17,7 @@ std::vector<glaxnimate::module::ExternalComponent> glaxnimate::webexport::Module
 void glaxnimate::webexport::Module::initialize()
 {
     register_io_classes<
-        InteractiveSvgFormat
+        InteractiveSvgFormat,
+        CssSvgFormat
     >();
 }

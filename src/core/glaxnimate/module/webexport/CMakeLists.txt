@@ -9,6 +9,7 @@ configure_file(svg_player_js.in.hpp ${CMAKE_CURRENT_BINARY_DIR}/svg_player_js.hp
 set(SOURCES
     webexport_module.cpp
     interactive_svg_format.cpp
+    css_svg_format.cpp
 )
 
 add_library(GlaxnimateWebExport OBJECT ${SOURCES})

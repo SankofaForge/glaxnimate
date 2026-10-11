@@ -141,6 +141,24 @@ private Q_SLOTS:
         QVERIFY(qAbs(values.front() - 5) < 0.01);
         QVERIFY(qAbs(values.back() - 85) < 0.01);
     }
+
+    void test_repeater_opacity_animation()
+    {
+        QByteArray json = lottie(0, 30);
+        json.replace("{\"ty\": \"fl\"", R"({"ty": "rp", "c": {"a": 0, "k": 3}, "o": {"a": 0, "k": 0}, "m": 1,
+            "tr": {"ty": "tr", "p": {"a": 0, "k": [12, 0]}, "a": {"a": 0, "k": [0, 0]}, "s": {"a": 0, "k": [100, 100]},
+                   "r": {"a": 0, "k": 0}, "eo": {"a": 0, "k": 100},
+                   "so": {"a": 1, "k": [{"t": 0, "s": [100], "o": {"x": [0], "y": [0]}, "i": {"x": [1], "y": [1]}}, {"t": 30, "s": [0]}]}}},
+            {"ty": "fl")");
+        QVERIFY(json.contains("\"rp\""));
+        auto animations = export_svg(json).elementsByTagName("animate");
+        int opacity = 0;
+        for ( int i = 0; i < animations.size(); i++ )
+            if ( animations.at(i).toElement().attribute("attributeName") == "opacity" )
+                opacity++;
+        // Each copy fades with its own share of the start opacity
+        QCOMPARE(opacity, 3);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestSvgRenderer)

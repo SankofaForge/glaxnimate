@@ -834,6 +834,9 @@ public:
             if ( opacity.animated() )
             {
                 AnimationData anim_opacity(this, {"opacity"}, opacity.keyframes().size(), time_stretch, time_start);
+                anim_opacity.value_at = [this, &opacity, &opacity_func](model::FrameTime time) {
+                    return std::vector<QString>{format_float(opacity.combine_value_at<float, float>(time_to_local(time), opacity_func))};
+                };
                 for ( const auto& keyframe : opacity.keyframes() )
                 {
                     anim_opacity.add_keyframe(
@@ -842,6 +845,7 @@ public:
                         keyframe.transition()
                     );
                 }
+                anim_opacity.add_dom(element);
             }
         }
     }

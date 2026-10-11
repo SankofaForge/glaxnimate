@@ -6,6 +6,8 @@
 
 #include "glaxnimate/io/svg/svg_renderer.hpp"
 
+#include <functional>
+
 #include "glaxnimate/model/document.hpp"
 #include "glaxnimate/model/shapes/composable/group.hpp"
 #include "glaxnimate/model/shapes/composable/layer.hpp"
@@ -290,24 +292,25 @@ public:
         void add_keyframe(model::FrameTime time, const std::vector<QString>& vals,
                           const model::KeyframeTransition& trans)
         {
-            if ( time < parent->ip || time > parent->op )
+            if ( time < parent->ip )
+            {
+                before = time;
+                before_transition = trans;
+                has_before = true;
                 return;
+            }
+
+            if ( time > parent->op )
+            {
+                add_out_point(time);
+                return;
+            }
 
             if ( key_times.empty() && time > parent->ip )
-            {
-                key_times.push_back("0");
-                key_splines.push_back("0 0 1 1");
-                add_values(vals);
-            }
-            else if ( hold && last + 1 < time )
-            {
+                add_in_point(time, vals);
 
-                key_times.push_back(parent->unlerp_time(time - 1));
-                key_splines.push_back("0 0 1 1");
-                for ( std::size_t i = 0; i != attributes.size(); i++ )
-                    attributes[i].values.push_back(attributes[i].values.back());
-
-            }
+            if ( hold && last + 1 < time )
+                add_hold(time);
 
             key_times.push_back(parent->unlerp_time(time));
             key_splines.push_back(key_spline(trans));
@@ -316,6 +319,70 @@ public:
 
             last = time;
             hold = trans.hold();
+            last_transition = trans;
+        }
+
+        void add_hold(model::FrameTime time)
+        {
+            key_times.push_back(parent->unlerp_time(time - 1));
+            key_splines.push_back("0 0 1 1");
+            for ( std::size_t i = 0; i != attributes.size(); i++ )
+                attributes[i].values.push_back(attributes[i].values.back());
+        }
+
+        /**
+         * \brief Adds the first keyframe at the start of the visible range
+         *
+         * When a keyframe before the range eases into \p next_time, the value
+         * at the start is interpolated and the remaining part of the easing is kept.
+         */
+        void add_in_point(model::FrameTime next_time, const std::vector<QString>& next_vals)
+        {
+            key_times.push_back("0");
+            last = parent->ip;
+
+            if ( !value_at || !has_before )
+            {
+                key_splines.push_back("0 0 1 1");
+                add_values(next_vals);
+                hold = false;
+                return;
+            }
+
+            add_values(value_at(parent->ip));
+            hold = before_transition.hold();
+            last_transition = before_transition.split(math::unlerp(before, next_time, parent->ip)).second;
+            key_splines.push_back(hold ? "0 0 1 1" : key_spline(last_transition));
+        }
+
+        /**
+         * \brief Ends the animation at the end of the visible range
+         *
+         * When the last visible keyframe eases into a keyframe past the range,
+         * the value at the end is interpolated and the easing is cut there.
+         */
+        void add_out_point(model::FrameTime next_time)
+        {
+            if ( !value_at || after_out_point )
+                return;
+
+            after_out_point = true;
+
+            if ( key_times.empty() )
+            {
+                if ( !has_before )
+                    return;
+                add_in_point(next_time, {});
+            }
+
+            if ( hold || last >= parent->op )
+                return;
+
+            key_splines.back() = key_spline(last_transition.split(math::unlerp(last, next_time, parent->op)).first);
+            key_times.push_back("1");
+            key_splines.push_back("0 0 1 1");
+            add_values(value_at(parent->op));
+            last = parent->op;
         }
 
         void add_dom(
@@ -370,6 +437,13 @@ public:
         QStringList key_points = {};
         model::FrameTime last = 0;
         bool hold = false;
+        /// Values at a global time, used to cut keyframes at the edges of the visible range
+        std::function<std::vector<QString>(model::FrameTime)> value_at = {};
+        model::KeyframeTransition last_transition = {};
+        model::FrameTime before = 0;
+        model::KeyframeTransition before_transition = {};
+        bool has_before = false;
+        bool after_out_point = false;
         qreal time_stretch = 1;
         model::FrameTime time_start = 0;
     };
@@ -391,6 +465,9 @@ public:
             auto keyframes = split_keyframes(property);
 
             AnimationData data(this, {attr}, keyframes.size(), time_stretch, time_start);
+            data.value_at = [this, property](model::FrameTime time) {
+                return std::vector<QString>{property->value(time_to_local(time)).toString()};
+            };
 
             for ( int i = 0; i < int(keyframes.size()); i++ )
             {
@@ -406,6 +483,13 @@ public:
     {
         for ( auto it = timing.rbegin(), end = timing.rend(); it != end; ++it )
             time = (*it)->time_from_local(time);
+        return time;
+    }
+
+    qreal time_to_local(qreal time)
+    {
+        for ( auto item : timing )
+            time = item->time_to_local(time);
         return time;
     }
 
@@ -431,6 +515,9 @@ public:
         {
             auto keys = split_keyframes(&j);
             AnimationData data(this, attrs, keys.size(), time_stretch, time_start);
+            data.value_at = [this, &j, &callback](model::FrameTime time) {
+                return callback(j.value_at(time_to_local(time)));
+            };
 
             for ( const auto& kf : keys )
                 data.add_keyframe(time_to_global(kf->time()), callback(j.value_at(kf->time())), kf->transition());
@@ -732,6 +819,9 @@ public:
             if ( kf_count >= 2 )
             {
                 AnimationData anim_display(this, {"display"}, kf_count, time_stretch, time_start);
+                anim_display.value_at = [this, repeater, index](model::FrameTime time) {
+                    return std::vector<QString>{index < repeater->copies.get_at(time_to_local(time)) ? "block" : "none"};
+                };
 
                 for ( const auto& kf : repeater->copies )
                 {
@@ -844,6 +934,9 @@ public:
             if ( j.animated() )
             {
                 AnimationData data(this, {"d"}, j.keyframes().size(), time_stretch, time_start);
+                data.value_at = [this, shape](model::FrameTime time) {
+                    return std::vector<QString>{path_data(shape->shapes(time_to_local(time))).first};
+                };
 
                 for ( const auto& kf : j )
                     data.add_keyframe(time_to_global(kf.time), {path_data(shape->shapes(kf.time)).first}, kf.transition());
@@ -1014,6 +1107,9 @@ public:
             }
             else
             {
+                data.value_at = [this, prop, &callback](model::FrameTime time) {
+                    return std::vector<QString>{callback(prop->get_at(time_to_local(time)))};
+                };
 
                 for ( const auto& kf : j )
                     data.add_keyframe(time_to_global(kf.time), {callback(prop->get_at(kf.time))}, kf.transition());
@@ -1200,6 +1296,10 @@ public:
             for ( int i = 0; i < n_stops; i++ )
             {
                 AnimationData data(this, {"offset", "stop-color"}, gradient->colors.keyframe_count(), time_stretch, time_start);
+                data.value_at = [this, gradient, i](model::FrameTime time) {
+                    auto stop = gradient->colors.get_at(time_to_local(time)).value(i);
+                    return std::vector<QString>{format_float(stop.first), stop.second.name()};
+                };
                 for ( const auto& kf : gradient->colors )
                 {
                     auto stop = kf.get()[i];

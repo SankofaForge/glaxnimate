@@ -5,6 +5,7 @@
  */
 
 #include <QTest>
+#include <QDomDocument>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -12,6 +13,7 @@
 
 #include "glaxnimate/io/glaxnimate/glaxnimate_format.hpp"
 #include "glaxnimate/io/lottie/lottie_format.hpp"
+#include "glaxnimate/io/svg/svg_format.hpp"
 #include "glaxnimate/model/assets/assets.hpp"
 #include "glaxnimate/model/shapes/composable/group.hpp"
 #include "glaxnimate/model/shapes/composable/layer.hpp"
@@ -218,6 +220,66 @@ private Q_SLOTS:
         });
         QVERIFY(!lottie.save(comp).isEmpty());
         QVERIFY(warnings.join(" ").contains("layers only"));
+    }
+
+    void test_svg_filters()
+    {
+        auto comp = load();
+        auto blur = add_effect<model::GaussianBlurEffect>(comp);
+        blur->blurriness.set_keyframe(0, 10);
+        blur->blurriness.set_keyframe(30, 20);
+        auto shadow = add_effect<model::DropShadowEffect>(comp);
+        shadow->angle.set(90);
+        shadow->distance.set(10);
+        add_effect<model::FillEffect>(comp)->color.set(QColor(0, 0, 255));
+        add_effect<model::TintEffect>(comp)->amount.set(0.5);
+        add_effect<model::TritoneEffect>(comp)->blend.set(0.25);
+        add_effect<model::GaussianBlurEffect>(comp)->visible.set(false);
+
+        io::svg::SvgFormat svg;
+        QDomDocument dom;
+        QVERIFY(dom.setContent(svg.save(comp)));
+
+        auto filters = dom.elementsByTagName("filter");
+        QCOMPARE(filters.size(), 1);
+        QDomElement filter = filters.at(0).toElement();
+        QCOMPARE(filter.attribute("color-interpolation-filters"), QStringLiteral("sRGB"));
+
+        // The layer that owns the effects uses the filter
+        bool referenced = false;
+        auto groups = dom.elementsByTagName("g");
+        for ( int i = 0; i < groups.size(); i++ )
+            referenced |= groups.at(i).toElement().attribute("filter") == "url(#" + filter.attribute("id") + ")";
+        QVERIFY(referenced);
+
+        QStringList tags;
+        for ( auto child = filter.firstChildElement(); !child.isNull(); child = child.nextSiblingElement() )
+            tags.push_back(child.tagName());
+        // The hidden blur is left out
+        QCOMPARE(tags, (QStringList{
+            "feGaussianBlur", "feDropShadow", "feFlood", "feComposite",
+            "feColorMatrix", "feColorMatrix", "feComponentTransfer", "feComposite"
+        }));
+
+        QDomElement gaussian = filter.firstChildElement("feGaussianBlur");
+        QCOMPARE(gaussian.attribute("stdDeviation").toDouble(), 3.);
+        QCOMPARE(gaussian.attribute("in"), QStringLiteral("SourceGraphic"));
+        QVERIFY(!gaussian.firstChildElement("animate").isNull());
+        QCOMPARE(gaussian.firstChildElement("animate").attribute("attributeName"), QStringLiteral("stdDeviation"));
+
+        QDomElement drop = filter.firstChildElement("feDropShadow");
+        QCOMPARE(drop.attribute("in"), gaussian.attribute("result"));
+        QVERIFY(qAbs(drop.attribute("dx").toDouble() - 10) < 0.001);
+        QVERIFY(qAbs(drop.attribute("dy").toDouble()) < 0.001);
+        QCOMPARE(drop.attribute("flood-opacity").toDouble(), 0.5);
+
+        QDomElement flood = filter.firstChildElement("feFlood");
+        QCOMPARE(flood.attribute("flood-color"), QStringLiteral("#0000ff"));
+
+        QDomElement mix = filter.lastChildElement("feComposite");
+        QCOMPARE(mix.attribute("operator"), QStringLiteral("arithmetic"));
+        QCOMPARE(mix.attribute("k2").toDouble(), 0.75);
+        QCOMPARE(mix.attribute("k3").toDouble(), 0.25);
     }
 
     void test_native_format_round_trip()

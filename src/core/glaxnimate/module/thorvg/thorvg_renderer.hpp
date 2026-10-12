@@ -390,6 +390,36 @@ public:
         return layers.back()->opacity() / 255.;
     }
 
+    void add_effect(const renderer::Effect& effect) override
+    {
+        // The effect API is variadic, so every argument must have the exact documented type
+        constexpr int quality = 100;
+        auto scene = layers.back();
+        const QColor* c = effect.colors;
+        switch ( effect.type )
+        {
+            case renderer::Effect::GaussianBlur:
+                scene->add(tvg::SceneEffect::GaussianBlur, double(effect.sigma), 0, 0, quality);
+                break;
+            case renderer::Effect::DropShadow:
+                scene->add(tvg::SceneEffect::DropShadow, c[0].red(), c[0].green(), c[0].blue(), c[0].alpha(),
+                    double(effect.angle), double(effect.distance), double(effect.sigma), quality);
+                break;
+            case renderer::Effect::Fill:
+                scene->add(tvg::SceneEffect::Fill, c[0].red(), c[0].green(), c[0].blue(), c[0].alpha());
+                break;
+            case renderer::Effect::Tint:
+                scene->add(tvg::SceneEffect::Tint, c[0].red(), c[0].green(), c[0].blue(),
+                    c[1].red(), c[1].green(), c[1].blue(), double(effect.amount * 100));
+                break;
+            case renderer::Effect::Tritone:
+                scene->add(tvg::SceneEffect::Tritone, c[0].red(), c[0].green(), c[0].blue(),
+                    c[1].red(), c[1].green(), c[1].blue(), c[2].red(), c[2].green(), c[2].blue(),
+                    int(effect.amount * 255));
+                break;
+        }
+    }
+
     void clip_rect(const QRectF & rect) override
     {
         auto shape = tvg::Shape::gen();

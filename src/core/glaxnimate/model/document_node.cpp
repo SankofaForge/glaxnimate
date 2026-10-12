@@ -312,6 +312,8 @@ void glaxnimate::model::VisualNode::paint(renderer::Renderer* painter, FrameTime
         if ( c->is_instance<glaxnimate::model::Modifier>() && c->visible.get() )
             break;
     }
+    for ( auto c : docnode_visual_children() )
+        c->paint_effect(painter, time);
     painter->layer_end();
 }
 

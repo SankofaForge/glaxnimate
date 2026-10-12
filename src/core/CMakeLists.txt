@@ -93,6 +93,8 @@ glaxnimate/model/shapes/composable/image.cpp
 glaxnimate/model/shapes/composable/precomp_layer.cpp
 glaxnimate/model/shapes/composable/composable.cpp
 
+glaxnimate/model/shapes/effects/effects.cpp
+
 glaxnimate/model/shapes/modifiers/repeater.cpp
 glaxnimate/model/shapes/modifiers/trim.cpp
 glaxnimate/model/shapes/modifiers/inflate_deflate.cpp

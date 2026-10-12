@@ -22,6 +22,7 @@
 #include "glaxnimate/model/shapes/modifiers/trim.hpp"
 #include "glaxnimate/model/shapes/modifiers/inflate_deflate.hpp"
 #include "glaxnimate/model/shapes/modifiers/round_corners.hpp"
+#include "glaxnimate/model/shapes/effects/effects.hpp"
 #include "glaxnimate/model/shapes/modifiers/offset_path.hpp"
 #include "glaxnimate/model/shapes/modifiers/zig_zag.hpp"
 
@@ -339,6 +340,12 @@ void actions_group(QMenu* menu, SelectionManager* window, model::Group* group)
     add_child_action<model::RoundCorners>(menu_add, group);
     add_child_action<model::OffsetPath>(menu_add, group);
     add_child_action<model::ZigZag>(menu_add, group);
+    menu_add->addSeparator();
+    add_child_action<model::GaussianBlurEffect>(menu_add, group);
+    add_child_action<model::DropShadowEffect>(menu_add, group);
+    add_child_action<model::FillEffect>(menu_add, group);
+    add_child_action<model::TintEffect>(menu_add, group);
+    add_child_action<model::TritoneEffect>(menu_add, group);
 
     menu->addSeparator();
 

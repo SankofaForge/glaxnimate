@@ -8,6 +8,8 @@
 
 #include <functional>
 
+#include <QtMath>
+
 #include "glaxnimate/model/document.hpp"
 #include "glaxnimate/model/shapes/composable/group.hpp"
 #include "glaxnimate/model/shapes/composable/layer.hpp"
@@ -20,6 +22,7 @@
 #include "glaxnimate/model/shapes/style/fill.hpp"
 #include "glaxnimate/model/shapes/style/stroke.hpp"
 #include "glaxnimate/model/shapes/modifiers/repeater.hpp"
+#include "glaxnimate/model/shapes/effects/effects.hpp"
 #include "glaxnimate/model/animation/join_animatables.hpp"
 #include "glaxnimate/model/custom_font.hpp"
 #include "glaxnimate/math/math.hpp"
@@ -1069,6 +1072,185 @@ public:
         write_property(g, &group->opacity, "opacity", t);
         write_visibility_attributes(g, group);
         write_shapes(g, group->shapes, has_mask, t);
+        write_effects(g, group, t);
+    }
+
+    /**
+     * \brief Writes visible effects in a group as one filter chain
+     *
+     * The primitives follow the formulas of the default renderer, computed in sRGB.
+     */
+    void write_effects(QDomElement& g, model::Group* group, model::FrameTime t)
+    {
+        std::vector<model::Effect*> effects;
+        for ( const auto& shape : group->shapes )
+        {
+            auto effect = shape->cast<model::Effect>();
+            if ( effect && effect->visible.get() )
+                effects.push_back(effect);
+        }
+        if ( effects.empty() )
+            return;
+
+        QString filter_id = "effects_" + id(group);
+        QDomElement filter = element(defs, "filter");
+        filter.setAttribute("id", filter_id);
+        filter.setAttribute("x", "-100%");
+        filter.setAttribute("y", "-100%");
+        filter.setAttribute("width", "300%");
+        filter.setAttribute("height", "300%");
+        filter.setAttribute("color-interpolation-filters", "sRGB");
+
+        QString input = "SourceGraphic";
+        for ( std::size_t i = 0; i < effects.size(); i++ )
+        {
+            QString result = QString("%1_%2").arg(filter_id).arg(i);
+            write_effect(filter, effects[i], input, result, t);
+            input = result;
+        }
+        g.setAttribute("filter", "url(#" + filter_id + ")");
+    }
+
+    using EffectValues = std::function<std::vector<QString>(const renderer::Effect&)>;
+
+    /**
+     * \brief Sets attributes computed from an effect and animates them with the effect
+     */
+    void effect_attributes(QDomElement& element, model::Effect* effect, const std::vector<QString>& attrs, const EffectValues& values, model::FrameTime t)
+    {
+        auto current = values(effect->effect_at(t));
+        for ( std::size_t i = 0; i < attrs.size(); i++ )
+            element.setAttribute(attrs[i], current[i]);
+
+        if ( !animated )
+            return;
+
+        std::vector<const model::AnimatedPropertyBase*> properties;
+        for ( auto property : effect->properties() )
+        {
+            if ( property->traits().flags & model::PropertyTraits::Animated )
+                properties.push_back(static_cast<model::AnimatedPropertyBase*>(property));
+        }
+        model::JoinAnimatables join(std::move(properties), model::JoinAnimatables::NoValues);
+        if ( !join.animated() )
+            return;
+
+        AnimationData data(this, attrs, join.keyframes().size(), time_stretch, time_start);
+        for ( const auto& keyframe : join )
+            data.add_keyframe(time_to_global(keyframe.time), values(effect->effect_at(keyframe.time)), keyframe.transition());
+        data.add_dom(element);
+    }
+
+    QDomElement filter_primitive(QDomElement& filter, const QString& tag, const QString& input, const QString& result)
+    {
+        QDomElement primitive = element(filter, tag.toUtf8().constData());
+        if ( !input.isEmpty() )
+            primitive.setAttribute("in", input);
+        primitive.setAttribute("result", result);
+        return primitive;
+    }
+
+    void write_effect(QDomElement& filter, model::Effect* effect, const QString& input, const QString& result, model::FrameTime t)
+    {
+        // Rec. 709 luma, as used by the default renderer
+        static const QString luma = "0.2125 0.7154 0.0721";
+
+        switch ( effect->effect_at(t).type )
+        {
+            case renderer::Effect::GaussianBlur:
+            {
+                auto blur = filter_primitive(filter, "feGaussianBlur", input, result);
+                effect_attributes(blur, effect, {"stdDeviation"}, [this](const renderer::Effect& e) {
+                    return std::vector<QString>{format_float(e.sigma)};
+                }, t);
+                break;
+            }
+            case renderer::Effect::DropShadow:
+            {
+                auto shadow = filter_primitive(filter, "feDropShadow", input, result);
+                effect_attributes(shadow, effect, {"dx", "dy", "stdDeviation", "flood-color", "flood-opacity"}, [this](const renderer::Effect& e) {
+                    qreal angle = qDegreesToRadians(e.angle);
+                    return std::vector<QString>{
+                        format_float(e.distance * qSin(angle)),
+                        format_float(-e.distance * qCos(angle)),
+                        format_float(e.sigma),
+                        e.colors[0].name(),
+                        format_float(e.colors[0].alphaF()),
+                    };
+                }, t);
+                break;
+            }
+            case renderer::Effect::Fill:
+            {
+                auto flood = filter_primitive(filter, "feFlood", {}, result + "_color");
+                effect_attributes(flood, effect, {"flood-color", "flood-opacity"}, [this](const renderer::Effect& e) {
+                    return std::vector<QString>{e.colors[0].name(), format_float(e.colors[0].alphaF())};
+                }, t);
+                auto composite = filter_primitive(filter, "feComposite", result + "_color", result);
+                composite.setAttribute("in2", input);
+                composite.setAttribute("operator", "in");
+                break;
+            }
+            case renderer::Effect::Tint:
+            {
+                auto matrix = filter_primitive(filter, "feColorMatrix", input, result);
+                matrix.setAttribute("type", "matrix");
+                effect_attributes(matrix, effect, {"values"}, [this](const renderer::Effect& e) {
+                    // Each channel mixes black to white by luma, then mixes with the original by the amount
+                    QStringList rows;
+                    const qreal weights[3] = {0.2125, 0.7154, 0.0721};
+                    for ( int channel = 0; channel < 3; channel++ )
+                    {
+                        qreal black = channel_value(e.colors[0], channel);
+                        qreal range = channel_value(e.colors[1], channel) - black;
+                        QStringList row;
+                        for ( int source = 0; source < 3; source++ )
+                            row.push_back(format_float(e.amount * range * weights[source] + (source == channel ? 1 - e.amount : 0)));
+                        row.push_back("0");
+                        row.push_back(format_float(e.amount * black));
+                        rows.push_back(row.join(" "));
+                    }
+                    rows.push_back("0 0 0 1 0");
+                    return std::vector<QString>{rows.join("  ")};
+                }, t);
+                break;
+            }
+            case renderer::Effect::Tritone:
+            {
+                auto gray = filter_primitive(filter, "feColorMatrix", input, result + "_luma");
+                gray.setAttribute("type", "matrix");
+                gray.setAttribute("values", QString("%1 0 0  %1 0 0  %1 0 0  0 0 0 1 0").arg(luma));
+
+                // Table interpolation over three points matches the shadow-midtone-highlight ramp
+                auto transfer = filter_primitive(filter, "feComponentTransfer", result + "_luma", result + "_tone");
+                const char* functions[3] = {"feFuncR", "feFuncG", "feFuncB"};
+                for ( int channel = 0; channel < 3; channel++ )
+                {
+                    QDomElement function = element(transfer, functions[channel]);
+                    function.setAttribute("type", "table");
+                    effect_attributes(function, effect, {"tableValues"}, [this, channel](const renderer::Effect& e) {
+                        return std::vector<QString>{QString("%1 %2 %3").arg(
+                            format_float(channel_value(e.colors[0], channel)),
+                            format_float(channel_value(e.colors[1], channel)),
+                            format_float(channel_value(e.colors[2], channel))
+                        )};
+                    }, t);
+                }
+
+                auto mix = filter_primitive(filter, "feComposite", result + "_tone", result);
+                mix.setAttribute("in2", input);
+                mix.setAttribute("operator", "arithmetic");
+                effect_attributes(mix, effect, {"k2", "k3"}, [this](const renderer::Effect& e) {
+                    return std::vector<QString>{format_float(1 - e.amount), format_float(e.amount)};
+                }, t);
+                break;
+            }
+        }
+    }
+
+    static qreal channel_value(const QColor& color, int channel)
+    {
+        return channel == 0 ? color.redF() : channel == 1 ? color.greenF() : color.blueF();
     }
 
     template<class PropT, class Callback>

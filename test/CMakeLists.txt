@@ -73,6 +73,12 @@ if ( GLAXNIMATE_WEBEXPORT_ENABLED )
     )
 endif()
 
+ecm_add_test(
+    test_effects.cpp
+    TEST_NAME test_effects
+    LINK_LIBRARIES ${TESTS_LINK_LIBS}
+)
+
 if ( NOT ANDROID )
     ecm_add_test(
         test_trace.cpp

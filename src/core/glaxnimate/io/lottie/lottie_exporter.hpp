@@ -15,6 +15,7 @@
 #include "glaxnimate/model/animation/join_animatables.hpp"
 #include "glaxnimate/app_info.hpp"
 #include "glaxnimate/io/utils.hpp"
+#include "glaxnimate/model/shapes/effects/effects.hpp"
 
 namespace glaxnimate::io::lottie::detail {
 
@@ -215,6 +216,10 @@ public:
 
         bool all_shapes = !contains_layer.count(layer);
 
+        auto effects = convert_effects(layer->shapes);
+        if ( !effects.isEmpty() )
+            json["ef"_l] = effects;
+
         if ( all_shapes && !layer->mask->has_mask() )
         {
             json["ty"_l] = 4;
@@ -297,6 +302,9 @@ public:
         {
             convert_composable(grp, json);
             json["shapes"_l] = convert_shapes(grp->shapes, false);
+            auto effects = convert_effects(grp->shapes);
+            if ( !effects.isEmpty() )
+                json["ef"_l] = effects;
         }
         else
         {
@@ -697,6 +705,9 @@ public:
 
         if ( auto gr = qobject_cast<model::Group*>(shape) )
         {
+            for ( const auto& child : gr->shapes )
+                if ( child->is_instance<model::Effect>() )
+                    format->warning(i18n("Lottie supports effects on layers only, so effects in %1 are not exported", gr->object_name()));
             auto shapes = convert_shapes(gr->shapes, force_hidden || !gr->visible.get());
             QCborMap transform;
             transform["ty"_l] = "tr";
@@ -735,6 +746,93 @@ public:
         return jsh;
     }
 
+    /**
+     * \brief Converts effect elements to Lottie layer effects
+     *
+     * Players read effect parameters by position, so the parameters follow
+     * the order After Effects uses.
+     */
+    QCborArray convert_effects(const model::ShapeListProperty& shapes)
+    {
+        enum ParameterType { Slider = 0, Angle = 1, Color = 2, Checkbox = 4, Dropdown = 7, LayerReference = 10 };
+
+        QCborArray effects;
+        for ( const auto& shape : shapes )
+        {
+            auto effect = shape->cast<model::Effect>();
+            if ( !effect || (strip && !effect->visible.get()) )
+                continue;
+
+            QCborArray params;
+            auto add = [&params](ParameterType type, const QString& name, const QCborMap& value) {
+                QCborMap param;
+                param["ty"_l] = int(type);
+                param["nm"_l] = name;
+                param["ix"_l] = int(params.size()) + 1;
+                param["v"_l] = value;
+                params.push_back(param);
+            };
+
+            int type = 0;
+            if ( auto blur = effect->cast<model::GaussianBlurEffect>() )
+            {
+                type = 29;
+                add(Slider, "Blurriness", convert_animated(&blur->blurriness, {}));
+                add(Dropdown, "Blur Dimensions", fake_animated(1));
+                add(Checkbox, "Repeat Edge Pixels", fake_animated(0));
+            }
+            else if ( auto shadow = effect->cast<model::DropShadowEffect>() )
+            {
+                type = 25;
+                add(Color, "Shadow Color", convert_animated(&shadow->color, {}));
+                add(Slider, "Opacity", convert_animated(&shadow->opacity, FloatMult(255)));
+                add(Angle, "Direction", convert_animated(&shadow->angle, {}));
+                add(Slider, "Distance", convert_animated(&shadow->distance, {}));
+                add(Slider, "Softness", convert_animated(&shadow->blurriness, {}));
+            }
+            else if ( auto fill = effect->cast<model::FillEffect>() )
+            {
+                type = 21;
+                add(LayerReference, "Fill Mask", fake_animated(0));
+                add(Checkbox, "All Masks", fake_animated(0));
+                add(Color, "Color", convert_animated(&fill->color, {}));
+                add(Checkbox, "Invert", fake_animated(0));
+                add(Slider, "Horizontal Feather", fake_animated(0));
+                add(Slider, "Vertical Feather", fake_animated(0));
+                add(Slider, "Opacity", convert_animated(&fill->opacity, {}));
+            }
+            else if ( auto tint = effect->cast<model::TintEffect>() )
+            {
+                type = 20;
+                add(Color, "Map Black To", convert_animated(&tint->black, {}));
+                add(Color, "Map White To", convert_animated(&tint->white, {}));
+                add(Slider, "Amount to Tint", convert_animated(&tint->amount, FloatMult(100)));
+            }
+            else if ( auto tritone = effect->cast<model::TritoneEffect>() )
+            {
+                type = 23;
+                add(Color, "Highlights", convert_animated(&tritone->highlights, {}));
+                add(Color, "Midtones", convert_animated(&tritone->midtones, {}));
+                add(Color, "Shadows", convert_animated(&tritone->shadows, {}));
+                add(Slider, "Blend With Original", convert_animated(&tritone->blend, FloatMult(100)));
+            }
+            else
+            {
+                continue;
+            }
+
+            QCborMap jeffect;
+            jeffect["ty"_l] = type;
+            jeffect["nm"_l] = effect->object_name();
+            jeffect["ix"_l] = int(effects.size()) + 1;
+            jeffect["en"_l] = int(effect->visible.get());
+            jeffect["np"_l] = int(params.size()) + 1;
+            jeffect["ef"_l] = params;
+            effects.push_back(jeffect);
+        }
+        return effects;
+    }
+
     QCborMap fake_animated(const QCborValue& val)
     {
         QCborMap fake;
@@ -753,6 +851,8 @@ public:
                 --skip;
                 continue;
             }
+            if ( shape->is_instance<model::Effect>() )
+                continue;
             if ( shape->is_instance<model::Image>() )
                 format->warning(i18n("Images cannot be grouped with other shapes, they must be inside a layer"));
             else if ( shape->is_instance<model::PreCompLayer>() )

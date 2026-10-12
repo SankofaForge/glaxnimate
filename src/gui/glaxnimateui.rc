@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2024 Julius Künzel <julius.kuenzel@kde.org>
 
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
-<gui xmlns="https://www.kde.org/standards/kxmlgui/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="glaxnimate" version="3" xsi:schemaLocation="https://www.kde.org/standards/kxmlgui/1.0 https://www.kde.org/standards/kxmlgui/1.0/kxmlgui.xsd">
+<gui xmlns="https://www.kde.org/standards/kxmlgui/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="glaxnimate" version="4" xsi:schemaLocation="https://www.kde.org/standards/kxmlgui/1.0 https://www.kde.org/standards/kxmlgui/1.0/kxmlgui.xsd">
     <MenuBar>
         <Menu name="file">
             <Action name="file_new"/>
@@ -136,6 +136,14 @@ SPDX-License-Identifier: GPL-3.0-or-later
                 <Action name="new_roundcorners"/>
                 <Action name="new_offsetpath"/>
                 <Action name="new_zigzag"/>
+                <Menu name="new_effect_menu">
+                    <text>Effects</text>
+                    <Action name="new_gaussianblureffect"/>
+                    <Action name="new_dropshadoweffect"/>
+                    <Action name="new_filleffect"/>
+                    <Action name="new_tinteffect"/>
+                    <Action name="new_tritoneeffect"/>
+                </Menu>
             </Menu>
             <Action name="new_precomp_selection"/>
             <Action name="new_comp"/>

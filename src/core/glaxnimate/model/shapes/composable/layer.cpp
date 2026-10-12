@@ -139,6 +139,9 @@ void glaxnimate::model::Layer::paint(renderer::Renderer* painter, FrameTime time
         for ( int i = 1; i < n_shapes; i++ )
             docnode_visual_child(i)->paint(painter, time, mode);
 
+        for ( int i = 1; i < n_shapes; i++ )
+            docnode_visual_child(i)->paint_effect(painter, time);
+
         painter->layer_end();
     }
     else

@@ -25,6 +25,33 @@ struct Stroke
     qreal opacity = 1;
 };
 
+/**
+ * \brief Post-processing effect applied to the current layer
+ */
+struct Effect
+{
+    enum Type
+    {
+        GaussianBlur,
+        DropShadow,
+        Fill,
+        Tint,
+        Tritone,
+    };
+
+    Type type = GaussianBlur;
+    /// Drop shadow and fill: color. Tint: black, white. Tritone: shadows, midtones, highlights.
+    QColor colors[3] = {};
+    /// Standard deviation of the blur, in the layer's units
+    qreal sigma = 0;
+    /// Drop shadow direction in degrees, clockwise from up
+    qreal angle = 0;
+    /// Drop shadow offset
+    qreal distance = 0;
+    /// Tint intensity, or how much tritone mixes with the original colors, from 0 to 1
+    qreal amount = 1;
+};
+
 enum ShapeMode { NothingMode = 0, FillMode = 1, StrokeMode = 2 };
 
 enum SurfaceType
@@ -158,6 +185,14 @@ public:
      * \brief Sets layer opacity
      */
     virtual void set_opacity(qreal opacity) = 0;
+
+    /**
+     * \brief Applies a post-processing effect to the current layer
+     *
+     * Effects apply in the order they are added. Renderers without effect
+     * support ignore them.
+     */
+    virtual void add_effect(const Effect& effect) { Q_UNUSED(effect); }
     /**
      * \brief Layer opacity
      */

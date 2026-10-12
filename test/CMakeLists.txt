@@ -55,6 +55,24 @@ ecm_add_test(
     LINK_LIBRARIES ${TESTS_LINK_LIBS}
 )
 
+if ( GLAXNIMATE_WEBEXPORT_ENABLED )
+    ecm_add_test(
+        test_interactive_svg.cpp
+        TEST_NAME test_interactive_svg
+        LINK_LIBRARIES ${TESTS_LINK_LIBS}
+    )
+    ecm_add_test(
+        test_css_svg.cpp
+        TEST_NAME test_css_svg
+        LINK_LIBRARIES ${TESTS_LINK_LIBS}
+    )
+    ecm_add_test(
+        test_mobile_formats.cpp
+        TEST_NAME test_mobile_formats
+        LINK_LIBRARIES ${TESTS_LINK_LIBS}
+    )
+endif()
+
 if ( NOT ANDROID )
     ecm_add_test(
         test_trace.cpp

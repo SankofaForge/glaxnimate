@@ -56,6 +56,7 @@
 #include "glaxnimate/model/shapes/modifiers/round_corners.hpp"
 #include "glaxnimate/model/shapes/modifiers/offset_path.hpp"
 #include "glaxnimate/model/shapes/modifiers/zig_zag.hpp"
+#include "glaxnimate/model/shapes/effects/effects.hpp"
 #include "glaxnimate/io/io_registry.hpp"
 #include "glaxnimate/utils/data_paths.hpp"
 
@@ -625,6 +626,11 @@ void GlaxnimateWindow::Private::setup_layers_actions()
     add_modifier_menu_action<model::RoundCorners>(layers_actions);
     add_modifier_menu_action<model::OffsetPath>(layers_actions);
     add_modifier_menu_action<model::ZigZag>(layers_actions);
+    add_modifier_menu_action<model::GaussianBlurEffect>(layers_actions);
+    add_modifier_menu_action<model::DropShadowEffect>(layers_actions);
+    add_modifier_menu_action<model::FillEffect>(layers_actions);
+    add_modifier_menu_action<model::TintEffect>(layers_actions);
+    add_modifier_menu_action<model::TritoneEffect>(layers_actions);
 
     QAction* new_precomp_selection = add_action(layers_actions, QStringLiteral("new_precomp_selection"), i18n("Precompose Selection"), QStringLiteral("archive-extract"));
     connect(new_precomp_selection, &QAction::triggered, parent, [this]{

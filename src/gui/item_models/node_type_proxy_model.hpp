@@ -23,8 +23,14 @@ public:
     template<class T>
     void allow()
     {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+        beginFilterChange();
+        allowed.push_back(&T::staticMetaObject);
+        endFilterChange();
+#else
         allowed.push_back(&T::staticMetaObject);
         invalidateFilter();
+#endif
     }
 
 

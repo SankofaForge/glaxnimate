@@ -49,6 +49,12 @@ ecm_add_test(
     LINK_LIBRARIES ${TESTS_LINK_LIBS}
 )
 
+ecm_add_test(
+    test_svg_renderer.cpp
+    TEST_NAME test_svg_renderer
+    LINK_LIBRARIES ${TESTS_LINK_LIBS}
+)
+
 if ( NOT ANDROID )
     ecm_add_test(
         test_trace.cpp

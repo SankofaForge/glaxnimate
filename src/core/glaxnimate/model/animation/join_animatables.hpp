@@ -205,6 +205,15 @@ private:
             {
                 if ( !(flags & NoValues) )
                     raw_keyframes_.back().values.push_back(mids[i][j].value);
+
+                // A property that cannot change has no easing, so it must not dilute
+                // the easing of the animated properties when transitions are mixed
+                if ( properties_[j]->keyframe_count() < 2 )
+                {
+                    raw_keyframes_.back().transitions.push_back({{0, 0}, {1, 1}, KeyframeTransition::Special::Hold});
+                    continue;
+                }
+
                 raw_keyframes_.back().transitions.push_back(mids[i][j].to_next);
                 if ( mids[i][j].type == MidTransition::Middle && i > 0 && mids[i-1][j].type != MidTransition::Middle )
                 {

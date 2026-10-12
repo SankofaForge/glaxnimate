@@ -18,22 +18,35 @@ class SortFilterGoogleFont : public QSortFilterProxyModel
 {
 public:
 
+    /**
+     * \brief Applies a change that affects filtering and refreshes the filter
+     */
+    template<class Func>
+    void change_filter(Func&& change)
+    {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+        beginFilterChange();
+        change();
+        endFilterChange();
+#else
+        change();
+        invalidateFilter();
+#endif
+    }
+
     void set_search(const QString& query)
     {
-        search = query.toLower();
-        invalidateFilter();
+        change_filter([this, &query]{ search = query.toLower(); });
     }
 
     void set_subset(const QString& subset)
     {
-        this->subset = subset;
-        invalidateFilter();
+        change_filter([this, &subset]{ this->subset = subset; });
     }
 
     void set_category(glaxnimate::gui::font::GoogleFontsModel::GoogleFont::Category category)
     {
-        this->category = category;
-        invalidateFilter();
+        change_filter([this, category]{ this->category = category; });
     }
 
 

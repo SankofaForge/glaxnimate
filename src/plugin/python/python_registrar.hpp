@@ -128,7 +128,7 @@ struct PythonRegistrar
             [meth](QObject* o, py::args args) -> QVariant
             {
                 int len = py::len(args);
-                if ( len > 9 )
+                if ( len > ArgumentBuffer::max_arguments )
                     throw pybind11::value_error("Invalid argument count");
 
                 try {

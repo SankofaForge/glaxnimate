@@ -189,6 +189,9 @@ static RetT type_dispatch_maybe_void(int meta_type, FuncArgs&&... args)
 class ArgumentBuffer
 {
 public:
+    /// Maximum number of arguments QMetaObject::invokeMethod accepts
+    static constexpr int max_arguments = 10;
+
     ArgumentBuffer(const QMetaMethod& method) : method(method) {}
     ArgumentBuffer(const ArgumentBuffer&) = delete;
     ArgumentBuffer& operator=(const ArgumentBuffer&) = delete;
@@ -230,7 +233,7 @@ public:
     template<class CppType>
     CppType* allocate(const CppType& value)
     {
-        if ( avail() < int(sizeof(CppType)) )
+        if ( avail() < int(sizeof(CppType)) || arguments >= max_arguments )
             throw ScriptError(i18n("Cannot allocate argument"));
 
         CppType* addr = new (next_mem()) CppType;
@@ -293,9 +296,10 @@ private:
     int arguments = 0;
     int buffer_used = 0;
     std::array<char, 256> buffer;
-    std::array<Destructor*, 9> destructors;
-    std::array<QGenericArgument, 9> generic_args;
-    std::array<std::string, 9> names;
+    // One destructor per argument plus the return value
+    std::array<Destructor*, max_arguments + 1> destructors;
+    std::array<QGenericArgument, max_arguments> generic_args;
+    std::array<std::string, max_arguments> names;
     QGenericReturnArgument ret;
     void* ret_addr = nullptr;
     QMetaMethod method;

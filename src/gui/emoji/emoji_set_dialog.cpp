@@ -139,8 +139,8 @@ void glaxnimate::emoji::EmojiSetDialog::reload_sets()
             if ( p.path.exists(path) )
             {
                 QFile file(path);
-                file.open(QIODevice::ReadOnly);
-                d->show_preview(&file, row, i);
+                if ( file.open(QIODevice::ReadOnly) )
+                    d->show_preview(&file, row, i);
             }
             else
             {
@@ -246,7 +246,12 @@ void glaxnimate::emoji::EmojiSetDialog::download_selected()
             buf.open(QIODevice::ReadOnly);
 
             KCompressionDevice compressed(&buf, false, KCompressionDevice::GZip);
-            compressed.open(QIODevice::ReadOnly);
+            if ( !compressed.open(QIODevice::ReadOnly) )
+            {
+                d->ui.progress_bar->setVisible(false);
+                d->set_download_status(row, "package-broken", compressed.errorString());
+                return;
+            }
 
             data = compressed.readAll();
         }

@@ -33,9 +33,9 @@ public:
     explicit Gzipper(const gzip::ErrorFunc& on_error)
         : on_error(on_error)
     {
-        zip_stream.zalloc = Z_NULL;
-        zip_stream.zfree  = Z_NULL;
-        zip_stream.opaque = Z_NULL;
+        zip_stream.zalloc = nullptr;
+        zip_stream.zfree  = nullptr;
+        zip_stream.opaque = nullptr;
     }
 
     void add_data(const QByteArray& data)

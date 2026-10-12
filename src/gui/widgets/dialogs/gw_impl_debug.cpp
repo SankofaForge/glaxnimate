@@ -55,7 +55,8 @@ QString pretty_json(const QJsonDocument& input)
 {
     QTemporaryFile tempf(GlaxnimateApp::temp_path() + "/XXXXXX.json");
     tempf.setAutoRemove(false);
-    tempf.open();
+    if ( !tempf.open() )
+        return {};
     tempf.write(input.toJson(QJsonDocument::Indented));
     return tempf.fileName();
 }
@@ -69,7 +70,8 @@ QString pretty_xml(const QByteArray& xml)
 {
     QTemporaryFile tempf(GlaxnimateApp::temp_path() + "/XXXXXX.json");
     tempf.setAutoRemove(false);
-    tempf.open();
+    if ( !tempf.open() )
+        return {};
     QDomDocument doc;
     doc.setContent(xml);
     tempf.write(doc.toByteArray(4));
@@ -90,7 +92,8 @@ void json_to_pretty_temp(const QJsonDocument& doc)
 {
     QTemporaryFile tempf(GlaxnimateApp::temp_path() + "/XXXXXX.json");
     tempf.setAutoRemove(false);
-    tempf.open();
+    if ( !tempf.open() )
+        return;
     tempf.write(doc.toJson(QJsonDocument::Indented));
     tempf.close();
     open_file(tempf.fileName());

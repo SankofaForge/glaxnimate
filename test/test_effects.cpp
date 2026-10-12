@@ -6,10 +6,14 @@
 
 #include <QTest>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include "glaxnimate/io/glaxnimate/glaxnimate_format.hpp"
 #include "glaxnimate/io/lottie/lottie_format.hpp"
 #include "glaxnimate/model/assets/assets.hpp"
+#include "glaxnimate/model/shapes/composable/group.hpp"
 #include "glaxnimate/model/shapes/composable/layer.hpp"
 #include "glaxnimate/model/shapes/effects/effects.hpp"
 #include "glaxnimate/module/module.hpp"
@@ -135,6 +139,85 @@ private Q_SLOTS:
         auto comp = load();
         add_effect<model::FillEffect>(comp)->visible.set(false);
         QVERIFY(qRed(comp->render_image(0).pixel(50, 50)) > 200);
+    }
+
+    void test_lottie_export_and_import()
+    {
+        auto comp = load();
+        add_effect<model::GaussianBlurEffect>(comp)->blurriness.set(12);
+        auto shadow = add_effect<model::DropShadowEffect>(comp);
+        shadow->opacity.set(0.5);
+        shadow->angle.set(90);
+        shadow->distance.set_keyframe(0, 4);
+        shadow->distance.set_keyframe(30, 16);
+        auto fill = add_effect<model::FillEffect>(comp);
+        fill->color.set(QColor(0, 0, 255));
+        fill->opacity.set(0.25);
+        add_effect<model::TintEffect>(comp)->amount.set(0.4);
+        auto tritone = add_effect<model::TritoneEffect>(comp);
+        tritone->blend.set(0.3);
+        tritone->visible.set(false);
+
+        io::lottie::LottieFormat lottie;
+        QByteArray data = lottie.save(comp);
+        QJsonArray effects = QJsonDocument::fromJson(data).object()["layers"].toArray()[0].toObject()["ef"].toArray();
+        QCOMPARE(effects.size(), 5);
+
+        auto param = [&effects](int effect, int index) {
+            return effects[effect].toObject()["ef"].toArray()[index].toObject()["v"].toObject()["k"];
+        };
+        QCOMPARE(effects[0].toObject()["ty"].toInt(), 29);
+        QCOMPARE(param(0, 0).toDouble(), 12.);
+        QCOMPARE(effects[1].toObject()["ty"].toInt(), 25);
+        QCOMPARE(param(1, 1).toDouble(), 127.5);
+        QCOMPARE(param(1, 2).toDouble(), 90.);
+        QCOMPARE(effects[1].toObject()["ef"].toArray()[3].toObject()["v"].toObject()["a"].toInt(), 1);
+        QCOMPARE(effects[2].toObject()["ty"].toInt(), 21);
+        QCOMPARE(param(2, 2).toArray()[2].toDouble(), 1.);
+        QCOMPARE(param(2, 6).toDouble(), 0.25);
+        QCOMPARE(effects[3].toObject()["ty"].toInt(), 20);
+        QCOMPARE(param(3, 2).toDouble(), 40.);
+        QCOMPARE(effects[4].toObject()["ty"].toInt(), 23);
+        QCOMPARE(param(4, 3).toDouble(), 30.);
+        QCOMPARE(effects[4].toObject()["en"].toInt(), 0);
+        // Effects are not exported as shapes
+        QCOMPARE(QJsonDocument::fromJson(data).object()["layers"].toArray()[0].toObject()["shapes"].toArray().size(), 2);
+
+        model::Document loaded;
+        QVERIFY(lottie.load(&loaded, data));
+        auto loaded_layer = static_cast<model::Layer*>(loaded.assets()->compositions->values[0]->shapes[0]);
+        std::vector<model::Effect*> loaded_effects;
+        for ( const auto& shape : loaded_layer->shapes )
+            if ( auto effect = qobject_cast<model::Effect*>(shape.get()) )
+                loaded_effects.push_back(effect);
+        QCOMPARE(int(loaded_effects.size()), 5);
+        auto loaded_shadow = qobject_cast<model::DropShadowEffect*>(loaded_effects[1]);
+        QVERIFY(loaded_shadow);
+        QCOMPARE(loaded_shadow->opacity.get(), 0.5f);
+        QCOMPARE(loaded_shadow->distance.keyframe_count(), 2);
+        QCOMPARE(loaded_shadow->distance.get_at(30), 16.f);
+        auto loaded_fill = qobject_cast<model::FillEffect*>(loaded_effects[2]);
+        QVERIFY(loaded_fill);
+        QCOMPARE(loaded_fill->color.get().blue(), 255);
+        QCOMPARE(loaded_fill->opacity.get(), 0.25f);
+        QCOMPARE(qobject_cast<model::TintEffect*>(loaded_effects[3])->amount.get(), 0.4f);
+        QCOMPARE(loaded_effects[4]->visible.get(), false);
+    }
+
+    void test_lottie_warns_about_effects_in_groups()
+    {
+        auto comp = load();
+        auto group = static_cast<model::Group*>(layer(comp)->shapes.insert(std::make_unique<model::Group>(document.get())));
+        group->shapes.insert(std::make_unique<model::GaussianBlurEffect>(document.get()));
+
+        io::lottie::LottieFormat lottie;
+        QStringList warnings;
+        connect(&lottie, &io::ImportExport::message, this, [&warnings](const QString& message, log::Severity severity){
+            if ( severity == log::Warning )
+                warnings.push_back(message);
+        });
+        QVERIFY(!lottie.save(comp).isEmpty());
+        QVERIFY(warnings.join(" ").contains("layers only"));
     }
 
     void test_native_format_round_trip()

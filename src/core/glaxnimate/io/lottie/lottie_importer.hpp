@@ -16,6 +16,7 @@
 #include "glaxnimate/io/lottie/lottie_private_common.hpp"
 #include "glaxnimate/io/svg/svg_parser.hpp"
 #include "glaxnimate/model/animation/join_animatables.hpp"
+#include "glaxnimate/model/shapes/effects/effects.hpp"
 
 namespace glaxnimate::io::lottie::detail {
 
@@ -644,6 +645,84 @@ private:
                     }
                 }
             }
+        }
+
+        props.erase("ef");
+        if ( data.json.contains("ef") )
+            load_effects(data.json["ef"].toArray(), data.layer->shapes);
+    }
+
+    /**
+     * \brief Loads layer effects as effect elements in the layer
+     *
+     * Effect parameters are read by position, following After Effects.
+     */
+    void load_effects(const QJsonArray& jeffects, model::ShapeListProperty& shapes)
+    {
+        for ( const auto& value : jeffects )
+        {
+            QJsonObject json = value.toObject();
+            QJsonArray params = json["ef"].toArray();
+            auto param = [&params](int index) { return params.at(index).toObject()["v"]; };
+
+            std::unique_ptr<model::Effect> effect;
+            switch ( json["ty"].toInt() )
+            {
+                case 29:
+                {
+                    auto blur = make_node<model::GaussianBlurEffect>(document);
+                    load_animated(&blur->blurriness, param(0), {});
+                    effect = std::move(blur);
+                    break;
+                }
+                case 25:
+                {
+                    auto shadow = make_node<model::DropShadowEffect>(document);
+                    load_animated(&shadow->color, param(0), {});
+                    load_animated(&shadow->opacity, param(1), FloatMult(255));
+                    load_animated(&shadow->angle, param(2), {});
+                    load_animated(&shadow->distance, param(3), {});
+                    load_animated(&shadow->blurriness, param(4), {});
+                    effect = std::move(shadow);
+                    break;
+                }
+                case 21:
+                {
+                    auto fill = make_node<model::FillEffect>(document);
+                    load_animated(&fill->color, param(2), {});
+                    load_animated(&fill->opacity, param(6), {});
+                    effect = std::move(fill);
+                    break;
+                }
+                case 20:
+                {
+                    auto tint = make_node<model::TintEffect>(document);
+                    load_animated(&tint->black, param(0), {});
+                    load_animated(&tint->white, param(1), {});
+                    load_animated(&tint->amount, param(2), FloatMult(100));
+                    effect = std::move(tint);
+                    break;
+                }
+                case 23:
+                {
+                    auto tritone = make_node<model::TritoneEffect>(document);
+                    load_animated(&tritone->highlights, param(0), {});
+                    load_animated(&tritone->midtones, param(1), {});
+                    load_animated(&tritone->shadows, param(2), {});
+                    load_animated(&tritone->blend, param(3), FloatMult(100));
+                    effect = std::move(tritone);
+                    break;
+                }
+                default:
+                    Q_EMIT format->warning(i18n("Unsupported layer effect type %1", json["ty"].toInt()));
+                    continue;
+            }
+
+            if ( json.contains("nm") )
+                effect->name.set(json["nm"].toString());
+            if ( json.contains("en") && !json["en"].toVariant().toBool() )
+                effect->visible.set(false);
+            shapes.insert(std::move(effect));
         }
     }
 

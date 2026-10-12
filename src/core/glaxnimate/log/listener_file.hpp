@@ -17,12 +17,16 @@ public:
     explicit ListenerFile(const QString& filename)
         : file(filename)
     {
-        file.open(QFile::WriteOnly|QFile::Text);
+        if ( !file.open(QFile::WriteOnly|QFile::Text) )
+            qWarning("Could not open log file %s: %s", qPrintable(filename), qPrintable(file.errorString()));
     }
 
 protected:
     void on_line(const LogLine& line) override
     {
+        if ( !file.isOpen() )
+            return;
+
         QString log;
         log += line.time.toString(Qt::ISODate);
         log += ' '; log += Logger::severity_name(line.severity);

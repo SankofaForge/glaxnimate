@@ -142,6 +142,30 @@ private Q_SLOTS:
         QVERIFY(qAbs(values.back() - 85) < 0.01);
     }
 
+    void test_unmoving_animated_position()
+    {
+        // A position with keyframes that never moves has a zero-length motion path
+        QByteArray json = lottie(0, 30);
+        json.replace("\"ks\": {}", R"("ks": {"p": {"a": 1, "k": [
+            {"t": 0, "s": [50, 50], "o": {"x": [0], "y": [0]}, "i": {"x": [1], "y": [1]}},
+            {"t": 30, "s": [50, 50]}
+        ]}})");
+        QVERIFY(json.contains("\"p\": {\"a\": 1"));
+        QDomDocument dom = export_svg(json);
+        QVERIFY(!dom.isNull());
+        QCOMPARE(dom.elementsByTagName("animateMotion").size(), 0);
+        QVERIFY(!dom.toString().contains("nan"));
+        auto transforms = dom.elementsByTagName("animateTransform");
+        bool translate = false;
+        for ( int i = 0; i < transforms.size(); i++ )
+        {
+            QDomElement element = transforms.at(i).toElement();
+            if ( element.attribute("type") == "translate" && element.attribute("values").startsWith("50 50") )
+                translate = true;
+        }
+        QVERIFY(translate);
+    }
+
     void test_repeater_opacity_animation()
     {
         QByteArray json = lottie(0, 30);

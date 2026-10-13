@@ -1271,12 +1271,14 @@ public:
         {
             AnimationData data(this, {"transform"}, j.keyframes().size(), time_stretch, time_start);
 
-            if ( !path.empty() )
+            // A position that never moves has a zero-length motion path, which would
+            // divide by zero into NaN keyPoints, so it uses translate keyframes instead
+            math::bezier::LengthData bezlen(path, 12);
+            if ( !path.empty() && bezlen.length() > 0 )
             {
                 if ( j.keyframes()[0].time > ip )
                     data.add_motion_keyframe(time_to_global(ip), 0, {});
 
-                math::bezier::LengthData bezlen(path, 12);
                 int lenid = 0;
 
                 for ( const auto& kf : j )

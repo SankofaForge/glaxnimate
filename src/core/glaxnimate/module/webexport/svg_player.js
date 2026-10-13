@@ -113,6 +113,14 @@
       return;
     }
     reset();
+    // A finite play rests on its last frame, so show that frame instead of the first.
+    if (options.iterations !== 0) {
+      const flips = options.alternate ? options.iterations - 1 : 0;
+      const finalDirection = flips % 2 === 0 ? initialDirection : -initialDirection;
+      position = finalDirection === 1 ? duration : 0;
+      render();
+      return;
+    }
     for (const {node} of animations) node.remove();
     svg.setCurrentTime(offset / 1000);
   }

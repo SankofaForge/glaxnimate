@@ -108,6 +108,7 @@ std::unique_ptr<settings::SettingsGroup> webexport::CssSvgFormat::save_settings(
     return std::make_unique<settings::SettingsGroup>(settings::SettingList{
         settings::Setting("trigger", i18n("Play"), i18n("When the animation plays"),
             settings::Setting::String, QString("load"), triggers),
+        settings::Setting("iterations", i18n("Iterations"), i18n("Number of times to play, 0 to loop forever"), 0, 0, 1000),
         settings::Setting("root_id", i18n("Element ID"), i18n("ID for the root SVG element"), QString("glaxnimate-css")),
     });
 }
@@ -118,6 +119,13 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
     if ( trigger != "load" && trigger != "hover" )
     {
         error(i18n("Unknown playback trigger"));
+        return false;
+    }
+
+    const int iterations = options.value("iterations", 0).toInt();
+    if ( iterations < 0 || iterations > 1000 )
+    {
+        error(i18n("Playback iterations are out of range"));
         return false;
     }
 
@@ -204,7 +212,8 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
             css.keyframes += QString("    %1% { %2%3 }\n").arg(number(times[i].toDouble() * 100), declarations[i], timing);
         }
         css.keyframes += "}\n";
-        css.shorthand = QString("%1 %2s linear %3s infinite both").arg(name, number(duration), number(animation.attribute("begin").toDouble()));
+        css.shorthand = QString("%1 %2s linear %3s %4 both").arg(name, number(duration), number(animation.attribute("begin").toDouble()),
+            iterations == 0 ? QString("infinite") : QString::number(iterations));
 
         if ( kind == "animateTransform" || kind == "animateMotion" )
             css.static_rules = "transform-box: view-box; transform-origin: 0 0;";
@@ -239,7 +248,13 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
     }
     if ( trigger == "hover" )
         style += QString("#%1:not(:hover) * { animation-play-state: paused; }\n").arg(root_id);
-    style += QString("@media (prefers-reduced-motion: reduce) {\n    #%1 * { animation: none !important; }\n}\n").arg(root_id);
+    // A finite play rests on its last frame, so reduced motion jumps there.
+    // A loop has no resting frame and shows the first one.
+    if ( iterations == 0 )
+        style += QString("@media (prefers-reduced-motion: reduce) {\n    #%1 * { animation: none !important; }\n}\n").arg(root_id);
+    else
+        style += QString("@media (prefers-reduced-motion: reduce) {\n    #%1 * { animation-duration: 0s !important; animation-delay: 0s !important; "
+                         "animation-play-state: running !important; }\n}\n").arg(root_id);
 
     QDomElement style_element = dom.createElement("style");
     style_element.appendChild(dom.createCDATASection(style));

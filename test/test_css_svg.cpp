@@ -121,6 +121,7 @@ private Q_SLOTS:
         QVERIFY(style.contains("x: 5px;"));
         QVERIFY(style.contains("infinite both"));
         QVERIFY(style.contains("prefers-reduced-motion: reduce"));
+        QVERIFY(style.contains("animation: none !important"));
         QVERIFY(!style.contains(":hover"));
 
         // Only the gradient geometry keeps SMIL, and the export says so
@@ -160,10 +161,24 @@ private Q_SLOTS:
         QVERIFY(style.contains("100% { display: none; }"));
     }
 
+    void test_finite_iterations()
+    {
+        auto result = export_css({{"iterations", 2}});
+        QVERIFY(result.ok);
+        QString style = result.style();
+        QVERIFY(style.contains("s 2 both"));
+        QVERIFY(!style.contains("infinite"));
+        // Reduced motion jumps to the resting last frame instead of the first
+        QVERIFY(style.contains("animation-duration: 0s !important"));
+        QVERIFY(!style.contains("animation: none"));
+    }
+
     void test_rejects_invalid_settings()
     {
         QVERIFY(!export_css({{"trigger", "click"}}).ok);
         QVERIFY(!export_css({{"root_id", "9lives"}}).ok);
+        QVERIFY(!export_css({{"iterations", -1}}).ok);
+        QVERIFY(!export_css({{"iterations", 1001}}).ok);
     }
 };
 

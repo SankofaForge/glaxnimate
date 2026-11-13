@@ -191,6 +191,7 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
             (!discrete && splines.size() + 1 != times.size()) )
         {
             unsupported.insert(i18n("%1 on <%2>", attribute, target.tagName()));
+            animation.parentNode().removeChild(animation);
             continue;
         }
 
@@ -261,7 +262,7 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
     svg.insertBefore(style_element, svg.firstChild());
 
     for ( const auto& item : unsupported )
-        warning(i18n("CSS cannot animate %1; it keeps its SMIL animation", item));
+        warning(i18n("CSS cannot animate %1; it remains static", item));
 
     file.write(dom.toByteArray(4));
     return true;

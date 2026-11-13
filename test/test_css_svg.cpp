@@ -124,11 +124,9 @@ private Q_SLOTS:
         QVERIFY(style.contains("animation: none !important"));
         QVERIFY(!style.contains(":hover"));
 
-        // Only the gradient geometry keeps SMIL, and the export says so
+        // Unsupported gradient geometry remains static and the export says so
         auto smil = result.smil_attributes();
-        QVERIFY(!smil.isEmpty());
-        for ( const auto& attribute : smil )
-            QVERIFY2(attribute == "x1" || attribute == "y1", qPrintable(attribute));
+        QVERIFY(smil.isEmpty());
         QVERIFY(!result.warnings.isEmpty());
         QVERIFY(result.warnings.join(" ").contains("x1"));
     }

@@ -14,8 +14,8 @@ namespace glaxnimate::webexport {
  * \brief Animated SVG driven by CSS keyframes instead of SMIL
  *
  * Each SMIL animation from the SVG renderer becomes a CSS animation with the
- * same timing and easing. Animations that CSS cannot express keep their SMIL
- * element and produce a warning.
+ * same timing and easing. Animations that CSS cannot express remain static
+ * and produce a warning.
  */
 class CssSvgFormat : public io::ImportExport
 {

@@ -19,6 +19,14 @@ using namespace glaxnimate;
 
 namespace {
 
+class ShortWriteDevice : public QIODevice
+{
+public:
+    ShortWriteDevice() { open(QIODevice::WriteOnly); }
+    qint64 readData(char*, qint64) override { return -1; }
+    qint64 writeData(const char*, qint64 size) override { return size / 2; }
+};
+
 const char* lottie_json = R"({
     "v": "5.7.0", "fr": 30, "ip": 0, "op": 30, "w": 100, "h": 100, "nm": "Badge",
     "layers": [{"ty": 4, "ind": 1, "ip": 0, "op": 30, "st": 0, "ks": {}, "shapes": [
@@ -58,6 +66,13 @@ class TestMobileFormats : public QObject
     }
 
 private Q_SLOTS:
+    void test_short_write_fails()
+    {
+        ShortWriteDevice file;
+        webexport::ReactNativeFormat format;
+        QVERIFY(!format.save(file, "test.js", composition(), {}));
+    }
+
     void test_react_native()
     {
         webexport::ReactNativeFormat format;

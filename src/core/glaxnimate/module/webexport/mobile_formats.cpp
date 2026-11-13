@@ -45,7 +45,12 @@ bool webexport::MobileComponentFormat::on_save(QIODevice& file, const QString&, 
         return false;
     }
 
-    file.write(component(name, json, options.value("autoplay", true).toBool(), options.value("loop", true).toBool()));
+    const QByteArray output = component(name, json, options.value("autoplay", true).toBool(), options.value("loop", true).toBool());
+    if ( file.write(output) != output.size() )
+    {
+        error(i18n("Could not write the generated component"));
+        return false;
+    }
     return true;
 }
 

@@ -114,7 +114,7 @@ private Q_SLOTS:
         QCOMPARE(result.dom.documentElement().attribute("id"), QStringLiteral("glaxnimate-css"));
 
         const QString style = result.style();
-        QVERIFY(style.contains("@keyframes glaxnimate-css-a1"));
+        QVERIFY(style.contains("@keyframes glaxnimate-676c61786e696d6174652d637373-a1"));
         QVERIFY(style.contains("cubic-bezier(0.420, 0, 0.580, 1)"));
         QVERIFY(style.contains("transform: rotate("));
         QVERIFY(style.contains("fill: #"));
@@ -136,8 +136,16 @@ private Q_SLOTS:
         auto result = export_css({{"trigger", "hover"}, {"root_id", "badge"}});
         QVERIFY(result.ok);
         QCOMPARE(result.dom.documentElement().attribute("id"), QStringLiteral("badge"));
-        QVERIFY(result.style().contains("#badge:not(:hover) * { animation-play-state: paused; }"));
-        QVERIFY(result.style().contains("@keyframes badge-a1"));
+        QVERIFY(result.style().contains("#\\62 \\61 \\64 \\67 \\65 :not(:hover) * { animation-play-state: paused; }"));
+        QVERIFY(result.style().contains("@keyframes glaxnimate-6261646765-a1"));
+    }
+
+    void test_punctuation_in_id()
+    {
+        auto result = export_css({{"root_id", "my.animation"}});
+        QVERIFY(result.ok);
+        QVERIFY(result.style().contains("\\2e "));
+        QVERIFY(result.style().contains("@keyframes glaxnimate-6d792e616e696d6174696f6e-a1"));
     }
 
     void test_layer_time_range_holds_last_value()

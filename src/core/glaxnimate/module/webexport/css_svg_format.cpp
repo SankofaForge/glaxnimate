@@ -33,6 +33,14 @@ QString number(double value)
     return QString::number(value, 'g', 8);
 }
 
+QString css_id(const QString& id)
+{
+    QString escaped;
+    for ( QChar ch : id )
+        escaped += QString("\\%1 ").arg(uint(ch.unicode()), 0, 16);
+    return escaped;
+}
+
 /**
  * \brief Converts one SMIL value to a CSS declaration
  * \return An empty string when CSS cannot animate the attribute on this element
@@ -200,7 +208,7 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
 
         CssAnimation css;
         css.target = target.attribute("id");
-        const QString name = QString("%1-a%2").arg(root_id).arg(animations.size() + 1);
+        const QString name = QString("glaxnimate-%1-a%2").arg(QString::fromLatin1(root_id.toUtf8().toHex())).arg(animations.size() + 1);
         css.keyframes = "@keyframes " + name + " {\n";
         for ( int i = 0; i < times.size(); i++ )
         {
@@ -245,17 +253,17 @@ bool webexport::CssSvgFormat::on_save(QIODevice& file, const QString&, model::Co
     for ( const auto& target : order )
     {
         const auto& entry = per_target[target];
-        style += QString("#%1 { animation: %2; %3}\n").arg(target, entry.first.join(", "), entry.second.isEmpty() ? QString() : entry.second + " ");
+        style += QString("#%1 { animation: %2; %3}\n").arg(css_id(target), entry.first.join(", "), entry.second.isEmpty() ? QString() : entry.second + " ");
     }
     if ( trigger == "hover" )
-        style += QString("#%1:not(:hover) * { animation-play-state: paused; }\n").arg(root_id);
+        style += QString("#%1:not(:hover) * { animation-play-state: paused; }\n").arg(css_id(root_id));
     // A finite play rests on its last frame, so reduced motion jumps there.
     // A loop has no resting frame and shows the first one.
     if ( iterations == 0 )
-        style += QString("@media (prefers-reduced-motion: reduce) {\n    #%1 * { animation: none !important; }\n}\n").arg(root_id);
+        style += QString("@media (prefers-reduced-motion: reduce) {\n    #%1 * { animation: none !important; }\n}\n").arg(css_id(root_id));
     else
         style += QString("@media (prefers-reduced-motion: reduce) {\n    #%1 * { animation-duration: 0s !important; animation-delay: 0s !important; "
-                         "animation-play-state: running !important; }\n}\n").arg(root_id);
+                         "animation-play-state: running !important; }\n}\n").arg(css_id(root_id));
 
     QDomElement style_element = dom.createElement("style");
     style_element.appendChild(dom.createCDATASection(style));
